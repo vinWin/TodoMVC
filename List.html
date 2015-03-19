@@ -1,0 +1,180 @@
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Todo </title>
+
+    <style>
+        a { color: #0068D2; cursor: pointer; }
+        a:link, a:visited { text-decoration: none; color: #0068D2; }
+        a:hover, a:active { text-decoration: underline; color: #0068D2; }
+        body { font: 12px/18px "Lucida Grande", "Lucida Sans Unicode", sans-serif; }
+
+        #lists-table { border-collapse: collapse; }
+        #lists-table, #lists-table th, #lists-table td { padding: 8px 16px; text-align: left; border: 0px solid #B9BABE; }
+        #lists-table th { font-weight: bold; font-size: 14px; color: #29344B; }
+        #lists-table td { color: #000; }
+        #lists-table tr:nth-child(2n) { background: #E8EDFF; }
+
+        #lists-form { padding: 10px; }
+        .text input, .button input { padding: 5px; margin: 0; border: 1px solid #ccc; -moz-border-radius: 2px; -webkit-border-radius: 2px; border-radius: 2px; }
+        #lists-form .item { margin: 3px 0; }
+        #lists-form label, #lists-form .field { display: inline-block; color: #0C0B07; }
+        #lists-form label { width: 110px; font-weight: bold; text-align: right; color: #666; }
+        #lists-form .text input { width: 176px; padding: 3px; }
+        #lists-form .button { display: inline-block; }
+        #lists-form .button-wrapper { padding-left: 113px; }
+        .button input { padding: 4px 8px; color: #343434; background-color: #fdfdfd; background: -moz-linear-gradient(#fdfdfd, #e1e1e1); background: -webkit-gradient(linear, 0 0, 0 100%, from(#fdfdfd), to(#e1e1e1)); }
+        .button-default input { font-weight: bold; color: #fff; background-color: #7ca0c7; background: -moz-linear-gradient(#acc6e1, #7ca0c7); background: -webkit-gradient(linear, 0 0, 0 100%, from(#acc6e1), to(#7ca0c7)); border-color: #5b80b2; }
+    </style>
+</head>
+<body>
+<h1>Todo</h1>
+<table id="lists-table">
+    <tr id="lists-head">
+        <th>ID</th>
+        <th>Todo</th>
+        <th>Actions</th>
+    </tr>
+</table>
+
+<form id="lists-form">
+    <div class="item text">
+        <label>Todo :</label>
+        <div class="field"><input type="text" name="AddTodo" /></div>
+    </div>
+    <div class="button-wrapper">
+        <div class="item button">
+            <div class="field"><input type="button" id="lists-op-discard" value="Discard" /></div>
+        </div>
+        <div class="item button button-default">
+            <div class="field"><input type="submit" id="lists-op-save" value="Save" /></div>
+        </div>
+    </div>
+    <input type="hidden" name="id_entry" value="0" />
+</form>
+
+<script>
+    var Lists = {
+        index: window.localStorage.getItem("Lists:index"),
+        $table: document.getElementById("lists-table"),
+        $form: document.getElementById("lists-form"),
+        $button_save: document.getElementById("lists-op-save"),
+        $button_discard: document.getElementById("lists-op-discard"),
+
+        init: function() {
+            // initialize storage index
+            if (!Lists.index) {
+                window.localStorage.setItem("Lists:index", Lists.index = 1);
+            }
+
+            // initialize form
+            Lists.$form.reset();
+            Lists.$button_discard.addEventListener("click", function(event) {
+                Lists.$form.reset();
+                Lists.$form.id_entry.value = 0;
+            }, true);
+            Lists.$form.addEventListener("submit", function(event) {
+                var entry = {
+                    id: parseInt(this.id_entry.value),
+                    AddTodo: this.AddTodo.value
+                };
+                if (entry.id == 0) { // add
+                    Lists.storeAdd(entry);
+                    Lists.tableAdd(entry);
+                }
+                else { // edit
+                    Lists.storeEdit(entry);
+                    Lists.tableEdit(entry);
+                }
+
+                this.reset();
+                this.id_entry.value = 0;
+                event.preventDefault();
+            }, true);
+
+            // initialize table
+            if (window.localStorage.length - 1) {
+                var contacts_list = [], i, key;
+                for (i = 0; i < window.localStorage.length; i++) {
+                    key = window.localStorage.key(i);
+                    if (/Lists:\d+/.test(key)) {
+                        contacts_list.push(JSON.parse(window.localStorage.getItem(key)));
+                    }
+                }
+
+                if (contacts_list.length) {
+                    contacts_list
+                            .sort(function(a, b) {
+                                return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+                            })
+                            .forEach(Lists.tableAdd);
+                }
+            }
+            Lists.$table.addEventListener("click", function(event) {
+                var op = event.target.getAttribute("data-op");
+                if (/edit|remove/.test(op)) {
+                    var entry = JSON.parse(window.localStorage.getItem("Lists:"+ event.target.getAttribute("data-id")));
+                    if (op == "edit") {
+                        Lists.$form.AddTodo = entry.AddTodo;
+                        Lists.$form.id_entry.value = entry.id;
+                    }
+                    else if (op == "remove") {
+                        if (confirm('Are you sure you want to remove "'+ entry.AddTodo +' '+'" from your Todo list?')) {
+                            Lists.storeRemove(entry);
+                            Lists.tableRemove(entry);
+                        }
+                    }
+                    event.preventDefault();
+                }
+            }, true);
+        },
+
+        storeAdd: function(entry) {
+            entry.id = Lists.index;
+            window.localStorage.setItem("Lists:index", ++Lists.index);
+            window.localStorage.setItem("Lists:"+ entry.id, JSON.stringify(entry));
+        },
+        storeEdit: function(entry) {
+            window.localStorage.setItem("Lists:"+ entry.id, JSON.stringify(entry));
+        },
+        storeRemove: function(entry) {
+            window.localStorage.removeItem("Lists:"+ entry.id);
+        },
+
+        tableAdd: function(entry) {
+            var $tr = document.createElement("tr"), $td, key;
+            for (key in entry) {
+                if (entry.hasOwnProperty(key)) {
+                    $td = document.createElement("td");
+                    $td.appendChild(document.createTextNode(entry[key]));
+                    $tr.appendChild($td);
+                }
+            }
+            $td = document.createElement("td");
+            $td.innerHTML = '<a data-op="edit" data-id="'+ entry.id +'">Edit</a> | <a data-op="remove" data-id="'+ entry.id +'">Remove</a>';
+            $tr.appendChild($td);
+            $tr.setAttribute("id", "entry-"+ entry.id);
+            Lists.$table.appendChild($tr);
+        },
+        tableEdit: function(entry) {
+            var $tr = document.getElementById("entry-"+ entry.id), $td, key;
+            $tr.innerHTML = "";
+            for (key in entry) {
+                if (entry.hasOwnProperty(key)) {
+                    $td = document.createElement("td");
+                    $td.appendChild(document.createTextNode(entry[key]));
+                    $tr.appendChild($td);
+                }
+            }
+            $td = document.createElement("td");
+            $td.innerHTML = '<a data-op="edit" data-id="'+ entry.id +'">Edit</a> | <a data-op="remove" data-id="'+ entry.id +'">Remove</a>';
+            $tr.appendChild($td);
+        },
+        tableRemove: function(entry) {
+            Lists.$table.removeChild(document.getElementById("entry-"+ entry.id));
+        }
+    };
+    Lists.init();
+</script>
+</body>
+</html>
